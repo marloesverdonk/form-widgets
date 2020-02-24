@@ -1,6 +1,7 @@
 import * as React from "react"
 import * as ReactDOM from 'react-dom'
 import app from './app'
+import { statefulRouter } from "./stateful_routing/stateful_routing"
 
 function renderApp() {
 
@@ -16,10 +17,9 @@ document.addEventListener("DOMContentLoaded", e => renderApp())
 class Main extends React.Component<{}, {}> {
   render() {
     return (<div>
-      {app.run(console.log)}
-  
-      {/* {LoginForm.run(console.log)} */}
-      
+      {statefulRouter.run(console.log)}
+      {/* {app.run(console.log)} */}
+
     </div>)
   }
 }

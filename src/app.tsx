@@ -1,11 +1,13 @@
 import * as React from "react"
-import { string, stateful, any, div, label, mk_widget, Action, hn, button, AsyncState, unloadedAsyncState, mkWidget, IOWidget, checkbox, Widget, nothing } from "widgets-for-react"
+import { string, stateful, any, div, label, mk_widget, Action, hn, button, AsyncState, unloadedAsyncState, mkWidget, IOWidget, checkbox, Widget, nothing, async, loadingAsyncState, some } from "widgets-for-react"
 import EmailForm from './components/EmailForm'
 import AddressForm from './components/AddressForm'
 import LoginForm from './components/LoginForm'
+import Home from './components/Home'
+import { onNextPromise, onSubmitPromise, logInPromise, } from './api'
 
 export type State = {
-    error: string
+    AsyncState: AsyncState<string>
 } & (SignUp | LoginEmail | Home)
 
 interface Props { }
@@ -43,31 +45,92 @@ export interface Home {
 
 
 
-const app: Widget<State> = stateful<State>()(
-    s0 => any<State>()([
-        hn(1, 'hi')().never(),
+export const app: IOWidget<State, State> = s0 => any<State>()([
+     
+    async<string>(                                      // makes io   
+        error => hn(3, error)().never()
+    )(s0.AsyncState)                                    // input
+        .map((newAsyncState => {                        // map output of async to output of any
+            const result = newAsyncState(s0.AsyncState)
+            if (result.kind == 'loaded' && s0.step === 'first') {
+                if (!result.value) return ({
+                    ...s0,
+                    AsyncState: result,
+                    step: 'second'
+                }) 
+            } else if(result.kind == 'loaded' && s0.step === 'second'){
+                if (!result.value) return ({
+                    loginEmail: "",
+                    loginPassword: "",
+                    AsyncState: result,
+                    step: 'login'
+                }) 
+            }  else if(result.kind == 'loaded' && s0.step === 'login'){
+                if (!result.value) return ({
+                    AsyncState: result,
+                    step: 'home'
+                }) 
+            }
+            return ({ ...s0, AsyncState: newAsyncState(s0.AsyncState) })
+        })),
+    s0.step === 'first' ?
 
-        s0.step === 'first' ? EmailForm(s0.emailData).map((emailData => ({ ...s0, emailData }))) :
-            s0.step === 'second' ? AddressForm(s0.addressData).map((addressData => ({ ...s0, addressData }))) :
-                s0.step === 'login' ? LoginForm(s0).map((loginData => ({ ...s0, loginEmail: loginData.loginEmail, loginPassword: loginData.loginPassword }))) :
+        EmailForm(s0.emailData).map((emailData => ({ ...s0, emailData }))) :
+        s0.step === 'second' ? AddressForm(s0.addressData).map((addressData => ({ ...s0, addressData }))) :
+            s0.step === 'login' ? LoginForm(s0).map((loginData => ({ ...s0, loginEmail: loginData.loginEmail, loginPassword: loginData.loginPassword }))) :
+                s0.step === 'home' ? hn(1, 'home')().never() :
                     nothing(),
 
-        s0.step === 'first' ? button<State>('next')(() => {
-            if (s0.emailData.email.length == 0) return { ...s0, step: 'first' }
-            return ({ ...s0, step: 'second' })
-        }) :
-            s0.step === 'second' ? button<State>('submit')(() => {
-                if (s0.addressData.street.length == 0) return { ...s0, step: 'second' }
-                return ({ error: s0.error, step: 'login', loginEmail: "", loginPassword: "" })
-            }) : nothing()
-    ])
-)({
-    error: "", step: 'first',
-    emailData: { email: "", password: "", confirmPassword: "", showPassword: false },
-    addressData: { street: "", number: "", postalCode: "", city: "", termsAccepted: false }
-})
+
+    s0.step === 'first' ? button<State>('next')(() => {
+
+        return ({ ...s0, AsyncState: loadingAsyncState(() => onNextPromise(s0.emailData)) })
+        // return { ...s0, step: 'first' }
+
+    }) :
+        s0.step === 'second' ? any<State>()([
+            button<State>('submit')(() => {
+                return ({ ...s0, loginEmail: "", loginPassword: "", AsyncState: loadingAsyncState(() => onSubmitPromise(s0.addressData)) })
+                
+            }),
+            button<State>('back')(() => {
+                return { ...s0, step: 'first' }
+            })])
+            :
+            s0.step === 'login' ?
+                button<State>('login')(() => {
+                   return ({ ...s0, AsyncState: loadingAsyncState(() => logInPromise(s0.loginEmail, s0.loginPassword)) })
+    
+
+                }) : mkWidget({ run: _ => <Home values={s0} /> }),
+
+    // s0.AsyncState.kind === 'loaded' ?
+    //     hn(3, s0.AsyncState.value)().never() : nothing(),
+])
+
+
+
+//     ({
+//     step: 'first', AsyncState: unloadedAsyncState(),
+//     emailData: { email: "", password: "", confirmPassword: "", showPassword: false },
+//     addressData: { street: "", number: "", postalCode: "", city: "", termsAccepted: false }
+// })
 
 
 export default app
 
 
+// .map(newFunction(s0)),
+
+// const newFunction = (s0: State) => (newAsyncState:Action<AsyncState<string>>): State => {
+//         const result = newAsyncState(s0.AsyncState)
+//         if (result.kind == 'loaded' && s0.step === 'first') {
+//             if (result.value)
+//                 return ({
+//                     ...s0,
+//                     AsyncState: result,
+//                     step: 'second'
+//                 })
+//         }
+//         return ({ ...s0, AsyncState: newAsyncState(s0.AsyncState) })
+// }
